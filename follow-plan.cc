@@ -32,6 +32,7 @@ double GetFrontLaserData(LaserProxy& sp);
 double GetSoftLeftLaserData(LaserProxy& sp);
 double GetSoftRightLaserData(LaserProxy& sp);
 double GetDistance(double, double);
+void avoidObject(Position2dProxy& pp,LaserProxy& sp,bool&, bool&, bool&, double&);
 
 int  readPlanLength(void);
 void readPlan(double *, int);
@@ -150,53 +151,7 @@ int main(int argc, char *argv[])
         collided = true;
         pp.SetSpeed(speed, turnrate);
       	std::cout << "BUMPER HIT " << std::endl;
-
-      //Lasers and obstacles
-    		if(laserLeft < 1.0 && laserRight < 1.0){
-    		  if(blocked){ 
-            //infinite loop
-            //while path is blocked, move back until laserfront >2
-            std::cout <<"LASERFRONT<2moving backwards"<< std::endl;
-    			  speed= -1;
-            pp.SetSpeed(speed, turnrate);
-            if(laserFront > 1.0) {std::cout <<"BLOCK IS NOW FALSE" << std::endl; blocked = false; collided = false;}
-    			}
-          if(!collided){ 
-            std::cout <<"NOT BLOCKED/COLLIDED - NOW TURNING"<< std::endl;
-      			turnrate = 0.1;
-            speed = 0;
-            pp.SetSpeed(speed, turnrate);
-
-            if(laserFront > 5) { std::cout <<"FRONT CLEAR. SPEEDING UP"<< std::endl; turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate);}
-            std::cout << "DISTANCE! " << distance <<std::endl;
-            if(distance > 13){
-                        std::cout <<"NOW TURNING AFTER DISTANCE>13"<< std::endl;
-              speed = 0; 
-              turnrate = 0.1; 
-              pp.SetSpeed(speed,turnrate);
-              if(oriented == true){ turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate); }
-            }//distance>13
-          }//blocked=false
-    		}/* laser if */ else { std::cout << "ELSE" << std::endl; 
-if(!collided){ 
-            std::cout <<"NOT BLOCKED/COLLIDED - NOW TURNING"<< std::endl;
-            turnrate = 0.1;
-            speed = 0;
-            pp.SetSpeed(speed, turnrate);
-
-            if(laserFront > 5) { std::cout <<"FRONT CLEAR. SPEEDING UP"<< std::endl; turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate);}
-            std::cout << "DISTANCE! " << distance <<std::endl;
-            if(distance > 13){
-                        std::cout <<"NOW TURNING AFTER DISTANCE>13"<< std::endl;
-              speed = 0; 
-              turnrate = 0.1; 
-              pp.SetSpeed(speed,turnrate);
-              if(oriented == true){ turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate); }
-            }//distance>13
-          }//blocked=false
-        }//else 
-
-
+        avoidObject(pp,sp,oriented,blocked,collided,distance);
 /*
 		{
 		turnrate = -0.1;
@@ -318,6 +273,42 @@ double GetDistance(double x, double y)
   distance = sqrt((x*x)+(y*y));
   return distance;
 }
+void avoidObject(Position2dProxy& pp,LaserProxy& sp, bool& oriented, bool& blocked, bool& collided, double& distance){
+//Lasers and obstacles
+  double speed = 0, 
+        turnrate = 0,
+        laserFront = GetFrontLaserData(sp),
+        laserLeft = GetSoftRightLaserData(sp),
+        laserRight = GetSoftRightLaserData(sp);
+
+  if(laserLeft < 1.0 && laserRight < 1.0)
+    if(blocked){ 
+      //infinite loop
+      //while path is blocked, move back until laserfront >2
+      std::cout <<"LASERFRONT<2moving backwards"<< std::endl;
+      speed= -1;
+      pp.SetSpeed(speed, turnrate);
+      if(laserFront > 1.0) {std::cout <<"BLOCK IS NOW FALSE" << std::endl; blocked = false; collided = false;}
+    }
+
+    if(!collided){ 
+      std::cout <<"NOT BLOCKED/COLLIDED - NOW TURNING"<< std::endl;
+      turnrate = -0.1;
+      speed = 0;
+      pp.SetSpeed(speed, turnrate);
+
+      if(laserFront > 5) { std::cout <<"FRONT CLEAR. SPEEDING UP"<< std::endl; turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate);}
+      std::cout << "DISTANCE! " << distance <<std::endl;
+      if(distance > 13){
+                  std::cout <<"NOW TURNING AFTER DISTANCE>13"<< std::endl;
+        speed = 0; 
+        turnrate = -0.1; 
+        pp.SetSpeed(speed,turnrate);
+        if(oriented == true){ turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate); }
+      }//distance>13
+    }//blocked=false
+}
+
 
 void printRobotData(BumperProxy& bp, player_pose2d_t pose)
 {
