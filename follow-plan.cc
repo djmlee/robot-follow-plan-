@@ -29,6 +29,8 @@ player_pose2d_t readPosition(LocalizeProxy& lp);
 void printRobotData(BumperProxy& bp, player_pose2d_t pose);
 void printLaserData(LaserProxy& sp);
 double GetFrontLaserData(LaserProxy& sp);
+double GetSoftLeftLaserData(LaserProxy& sp);
+double GetSoftRightLaserData(LaserProxy& sp);
 double GetDistance(double, double);
 
 int  readPlanLength(void);
@@ -86,134 +88,164 @@ int main(int argc, char *argv[])
   // Main control loop 
   bool oriented = false;
   bool atCurrDest = false;
-	bool blocked = false;
-	double laserFront;
+	bool blocked = false; //blocked is LaserFront > 2
+  bool collided = false; //collided is LaserFront < 0.5
+	double laserFront, laserLeft, laserRight;
   while(true) 
     {    
       // Update information from the robot.
       robot.Read();
       // Read new information about position
       pose = readPosition(lp);
-      // Print data on the robot to the terminal
-      printRobotData(bp, pose);
       // Print information about the laser. Check the counter first to stop
       // problems on startup
-      if(counter > 2){
-	printLaserData(sp);
-      }
+      //if(counter > 2) printLaserData(sp);
+    
+		laserLeft = GetSoftLeftLaserData(sp);
+		laserRight = GetSoftRightLaserData(sp);
+		laserFront = GetFrontLaserData(sp);
 
-	/* 
-		        laserFront = GetFrontLaserData(sp);
-        std::cout << "00000000 " << laserFront << std::endl; 
-	*/
 	//if laserFront has obstacle in front, cout BLOCKED
-	// blocked = true, else false
-	/* 
-		          if(laserFront < 2){
-            std::cout << "BLOCKED" << std::endl;
-            blocked = true;
-          } else 
-            blocked = false;
-	*/
+		if(laserFront < 2){
+      std::cout << "!BLOCKED!" << std::endl;
+      blocked = true;
+      if(laserFront < 0.2) { collided = true; }
+    } else {blocked = false; collided = false;}
 
 
-      // Print data on the robot to the terminal --- turned off for now.
       // printRobotData(bp, pose);
-      // If either bumper is pressed, stop. Otherwise just go forwards
      
       double destx = plan[planPos];
       double desty = plan[planPos+1];
       double m = (desty - pose.py)/(destx - pose.px);
       double ang = atan(m);
-/*
-      double xdiff = fabs(destx - pose.px); // michele: moved up
-      double ydiff = fabs(desty - pose.py); // michele: moved up 
+
+      double xdiff = fabs(destx - pose.px);
+      double ydiff = fabs(desty - pose.py);  
       double distance = GetDistance(xdiff, ydiff); // michele made
-*/
+/*
       std::cout << "Oriented " << oriented << std::endl;
       std::cout << "Destination " <<  destx << "," << desty << std::endl;
-     std::cout << "angle to reach: " << ang << std::endl;    
-//      std::cout << "Distance: " << distance << std::endl;
-
+      std::cout << "angle to reach: " << ang << std::endl;    
+      std::cout << "Distance: " << distance << std::endl;
+*/
 
 	/* Dins:
 		*On Bump
 		*Retreat
 		*If blocked on left side - turn right
-			stop turning when MinRight() > 1
+			stop turning when laserRight() > 1
 			go straight
 			reestablish line of sight and go to goal
 		*If blocked on right side - turn right
-			stop turning when MinLeft() > 1
+			stop turning when laserLeft() > 1
 			go straight
 			reestablish line of sight and go to goal
 		
 	*/
       if(bp[0] || bp[1]){
-      	speed= -0.1;
+        // to send commands to robot pp.SetSpeed(speed, turnrate);  
+      	speed = 0;
       	turnrate= 0;
+        collided = true;
+        pp.SetSpeed(speed, turnrate);
       	std::cout << "BUMPER HIT " << std::endl;
-	
-	if(sp.MinLeft() < 0.7){
-		turnrate = 0.1;
-		if(sp.MinRight() > 1.7){
-			turnrate = 0;
-			speed = 0.2;
-		}
-		/*
-		if(lineofsight){
 
-		}*/
-	
-	}
-	else if(sp.MinRight() < 0.7){
+      //Lasers and obstacles
+    		if(laserLeft < 1.0 && laserRight < 1.0){
+    		  if(blocked){ 
+            //infinite loop
+            //while path is blocked, move back until laserfront >2
+            std::cout <<"LASERFRONT<2moving backwards"<< std::endl;
+    			  speed= -1;
+            pp.SetSpeed(speed, turnrate);
+            if(laserFront > 1.0) {std::cout <<"BLOCK IS NOW FALSE" << std::endl; blocked = false; collided = false;}
+    			}
+          if(!collided){ 
+            std::cout <<"NOT BLOCKED/COLLIDED - NOW TURNING"<< std::endl;
+      			turnrate = 0.1;
+            speed = 0;
+            pp.SetSpeed(speed, turnrate);
+
+            if(laserFront > 5) { std::cout <<"FRONT CLEAR. SPEEDING UP"<< std::endl; turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate);}
+            std::cout << "DISTANCE! " << distance <<std::endl;
+            if(distance > 13){
+                        std::cout <<"NOW TURNING AFTER DISTANCE>13"<< std::endl;
+              speed = 0; 
+              turnrate = 0.1; 
+              pp.SetSpeed(speed,turnrate);
+              if(oriented == true){ turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate); }
+            }//distance>13
+          }//blocked=false
+    		}/* laser if */ else { std::cout << "ELSE" << std::endl; 
+if(!collided){ 
+            std::cout <<"NOT BLOCKED/COLLIDED - NOW TURNING"<< std::endl;
+            turnrate = 0.1;
+            speed = 0;
+            pp.SetSpeed(speed, turnrate);
+
+            if(laserFront > 5) { std::cout <<"FRONT CLEAR. SPEEDING UP"<< std::endl; turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate);}
+            std::cout << "DISTANCE! " << distance <<std::endl;
+            if(distance > 13){
+                        std::cout <<"NOW TURNING AFTER DISTANCE>13"<< std::endl;
+              speed = 0; 
+              turnrate = 0.1; 
+              pp.SetSpeed(speed,turnrate);
+              if(oriented == true){ turnrate = 0; speed = 0.4; pp.SetSpeed(speed,turnrate); }
+            }//distance>13
+          }//blocked=false
+        }//else 
+
+
+/*
+		{
 		turnrate = -0.1;
-		if(sp.MinLeft() > 1.7){
-			turnrate = 0; 
-			speed = 0.2;
-		}
-		/*
-		if(lineofsight){
-		
-		}*/
-	}
+		if(bp[0] || bp[1]) speed = -0.5;
+		if(laserFront > 5) turnrate = 0; 
+		//speed=0.2;
+
+			if(distance > 13)
+			{
+			turnrate = 0.1;
+				if(oriented == true)
+				{
+				turnrate = 0;
+				speed = 0.4;
+				}
+			}//if end
+		}//else end
+    */
 }
-      else {
-	//correct so if both are negative it doesnt sum to a large number when subracting
-	if(ang < 0)
-		ang = fabs(ang);
-	angleDiff = fabs(ang - pose.pa);
-	std::cout << "angle diff: " << angleDiff << std::endl;
-	if(angleDiff < .01)
-		oriented = true;
-	else{
-	   turnrate = 0.1;
-	speed = 0.0;
-	}
+      else { 
+       //correct so if both are negative it doesnt sum to a large number when subracting
+      	if(ang < 0) { ang = fabs(ang); }
+      	
+        angleDiff = fabs(ang - pose.pa);
+      	std::cout << "angle diff: " << angleDiff << std::endl;
+      	
+        if(angleDiff < .01) oriented = true;
+      	else{
+      	 turnrate = 0.1;
+      	 speed = 0.0;
+      	}//else
+      }//else   
 
-	
-      }     
-
-      if(oriented == true)
-      {
-	speed = 0.4;
-	turnrate = 0.0;
+      if(!collided && oriented == true && !bp[0] && !bp[1]){
+        std::cout << " !!!PROCEEDING AS NORMAL!!! " << std::endl;
+      	speed = 0.4;
+      	turnrate = 0.0;
       }
-      
-      double xdiff = fabs(destx - pose.px);
-      double ydiff = fabs(desty - pose.py);
+
       std::cout << "x diff: " << xdiff << " y diff: " << ydiff << std::endl;
-      if((xdiff < 0.1) && (ydiff < 0.1))
-      {
-	std::cout << "At Position" << std::endl;
-	oriented = false;
-	planPos += 2;
+      if((xdiff < 0.1) && (ydiff < 0.1)){
+      	std::cout << "At Position" << std::endl;
+      	oriented = false;
+      	planPos += 2;
       }
 
       // What are we doing?
       std::cout << "Speed: " << speed << std::endl;      
       std::cout << "Turn rate: " << turnrate << std::endl << std::endl;
-
       // Send the commands to the robot
       pp.SetSpeed(speed, turnrate);  
       // Count how many times we do this
@@ -245,25 +277,14 @@ player_pose2d_t readPosition(LocalizeProxy& lp){
 
 void printLaserData(LaserProxy& sp)
 {
-
-  double maxRange, minLeft, minRight, range, bearing;
-  int points;
-
-  maxRange  = sp.GetMaxRange();
-  minLeft   = sp.MinLeft();
-  minRight  = sp.MinRight();
-  range     = sp.GetRange(5);
-  bearing   = sp.GetBearing(5);
-  points    = sp.GetCount();
-
   //Uncomment this to print out useful laser data
   std::cout << "Laser says..." << std::endl;
-  std::cout << "Maximum distance I can see: " << maxRange << std::endl;
-  std::cout << "Number of readings I return: " << points << std::endl;
-  std::cout << "Closest thing on left: " << minLeft << std::endl;
-  std::cout << "Closest thing on right: " << minRight << std::endl;
-  std::cout << "Range of a single point: " << range << std::endl;
-  std::cout << "Bearing of a single point: " << bearing << std::endl;
+  std::cout << "Maximum distance I can see: " << sp.GetMaxRange() << std::endl;
+  std::cout << "Number of readings I return: " << sp.GetCount() << std::endl;
+  std::cout << "Closest thing on left: " << sp.MinLeft() << std::endl;
+  std::cout << "Closest thing on right: " << sp.MinRight() << std::endl;
+  std::cout << "Range of a single point: " << sp.GetRange(5) << std::endl;
+  std::cout << "Bearing of a single point: " << sp.GetBearing(5) << std::endl;
 
   return;
 } // End of printLaserData()
@@ -273,9 +294,22 @@ double GetFrontLaserData(LaserProxy& sp)
 {
   double front;
   front = sp.GetRange(180);
-  return front;
+  return front
+;}
+
+double GetSoftLeftLaserData(LaserProxy& sp)
+{
+  double softleft;
+  softleft = sp.GetRange(225); //diagonally left
+  return softleft;
 }
 
+double GetSoftRightLaserData(LaserProxy& sp)
+{
+  double sright;
+  sright = sp.GetRange(135); //diagonally right
+  return sright;
+}
 // Returns distance from destination 
 // pythagorean 
 double GetDistance(double x, double y)
@@ -299,8 +333,7 @@ void printRobotData(BumperProxy& bp, player_pose2d_t pose)
   std::cout << "X: " << pose.px << std::endl;
   std::cout << "Y: " << pose.py << std::endl;
   std::cout << "A: " << pose.pa << std::endl;
-
-  
+ 
 } // End of printRobotData()
 
 /**

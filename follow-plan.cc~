@@ -29,6 +29,8 @@ player_pose2d_t readPosition(LocalizeProxy& lp);
 void printRobotData(BumperProxy& bp, player_pose2d_t pose);
 void printLaserData(LaserProxy& sp);
 double GetFrontLaserData(LaserProxy& sp);
+double GetSoftLeftLaserData(LaserProxy& sp);
+double GetSoftRightLaserData(LaserProxy& sp);
 double GetDistance(double, double);
 
 int  readPlanLength(void);
@@ -87,7 +89,7 @@ int main(int argc, char *argv[])
   bool oriented = false;
   bool atCurrDest = false;
 	bool blocked = false;
-	double laserFront;
+	double laserFront, laserLeft, laserRight;
   while(true) 
     {    
       // Update information from the robot.
@@ -95,17 +97,17 @@ int main(int argc, char *argv[])
       // Read new information about position
       pose = readPosition(lp);
       // Print data on the robot to the terminal
-      printRobotData(bp, pose);
+      //printRobotData(bp, pose);
       // Print information about the laser. Check the counter first to stop
       // problems on startup
       if(counter > 2){
 	printLaserData(sp);
       }
-
-	/* 
-		        laserFront = GetFrontLaserData(sp);
-        std::cout << "00000000 " << laserFront << std::endl; 
-	*/
+		laserLeft = GetSoftLeftLaserData(sp);
+		laserRight = GetSoftRightLaserData(sp);
+		laserFront = GetFrontLaserData(sp);
+        std::cout << "LASER FRONT: " << laserFront << std::endl; 
+	std::cout << "LASER Left: " << laserLeft << std::endl;         		std::cout << "LASER Right: " << laserRight << std::endl; 
 	//if laserFront has obstacle in front, cout BLOCKED
 	// blocked = true, else false
 	/* 
@@ -125,45 +127,120 @@ int main(int argc, char *argv[])
       double desty = plan[planPos+1];
       double m = (desty - pose.py)/(destx - pose.px);
       double ang = atan(m);
-/*
-      double xdiff = fabs(destx - pose.px); // michele: moved up
-      double ydiff = fabs(desty - pose.py); // michele: moved up 
+
+      double xdiff = fabs(destx - pose.px);
+      double ydiff = fabs(desty - pose.py);  
       double distance = GetDistance(xdiff, ydiff); // michele made
-*/
+/*
       std::cout << "Oriented " << oriented << std::endl;
       std::cout << "Destination " <<  destx << "," << desty << std::endl;
      std::cout << "angle to reach: " << ang << std::endl;    
-//      std::cout << "Distance: " << distance << std::endl;
-
+      std::cout << "Distance: " << distance << std::endl;
+*/
 
 	/* Dins:
 		*On Bump
 		*Retreat
 		*If blocked on left side - turn right
-			stop turning when MinRight() > 1
+			stop turning when laserRight() > 1
 			go straight
 			reestablish line of sight and go to goal
 		*If blocked on right side - turn right
-			stop turning when MinLeft() > 1
+			stop turning when laserLeft() > 1
 			go straight
 			reestablish line of sight and go to goal
 		
 	*/
       if(bp[0] || bp[1]){
-      	speed= -0.1;
+      	speed = 0;
       	turnrate= 0;
       	std::cout << "BUMPER HIT " << std::endl;
+		if(laserLeft < 1.0 && laserRight < 1.0)
+		{
+			if(laserFront < 0.4)
+			{std::cout <<"LASERFRONT<0.4"<<std::endl;
+			speed= -1;
+			}
+			speed = 0;
+		}
+		else
+		{
+		}
+/*
+		if(laserLeft < 1.0)
+		{
+		std::cout << "TURNIN RIGHT" << std::endl;
+		turnrate=0.1;
+	 	
+			if(bp[0] || bp[1])
+			{
+			std::cout <<"\nBAM" << std::endl;
+			speed = -0.5;
+			}
 	
+	
+			if(laserFront > 5) turnrate=0;
+			//speed = 0.2;
+		
+			if(distance > 13)
+			{
+			turnrate = 0.1;
+				if(oriented == true)
+				{
+				turnrate = 0;
+				speed = 0.4;
+				}
+			}
+			 
+		//if(
+		//speed = 0.2;
+		} else if (laserRight < 1.0)
+		{
+		turnrate = -0.1;
+		std::cout << "TURNIN LEFT" << std::endl;
+
+	 	if(bp[0] || bp[1]) speed = -0.5;
+		if(laserFront > 5) turnrate=0;
+		//speed = 0.2;
+
+			if(distance > 13)
+			{
+			turnrate = 0.1;
+				if(oriented == true)
+				{
+				turnrate = 0;
+				speed = 0.4;
+				}
+			}
+		} else 
+		{
+		turnrate = -0.1;
+		if(bp[0] || bp[1]) speed = -0.5;
+		if(laserFront > 5) turnrate = 0; 
+		//speed=0.2;
+
+			if(distance > 13)
+			{
+			turnrate = 0.1;
+				if(oriented == true)
+				{
+				turnrate = 0;
+				speed = 0.4;
+				}
+			}//if end
+		}//else end
+*/
+	/*
 	if(sp.MinLeft() < 0.7){
 		turnrate = 0.1;
 		if(sp.MinRight() > 1.7){
 			turnrate = 0;
 			speed = 0.2;
 		}
-		/*
+		
 		if(lineofsight){
 
-		}*/
+		}
 	
 	}
 	else if(sp.MinRight() < 0.7){
@@ -172,11 +249,13 @@ int main(int argc, char *argv[])
 			turnrate = 0; 
 			speed = 0.2;
 		}
-		/*
+		
 		if(lineofsight){
 		
-		}*/
+		}
 	}
+	*/
+}
       else {
 	//correct so if both are negative it doesnt sum to a large number when subracting
 	if(ang < 0)
@@ -193,14 +272,12 @@ int main(int argc, char *argv[])
 	
       }     
 
-      if(oriented == true)
+      if(oriented == true && !bp[0] && !bp[1])
       {
 	speed = 0.4;
 	turnrate = 0.0;
       }
-      
-      double xdiff = fabs(destx - pose.px);
-      double ydiff = fabs(desty - pose.py);
+
       std::cout << "x diff: " << xdiff << " y diff: " << ydiff << std::endl;
       if((xdiff < 0.1) && (ydiff < 0.1))
       {
@@ -275,6 +352,19 @@ double GetFrontLaserData(LaserProxy& sp)
   return front;
 }
 
+double GetSoftLeftLaserData(LaserProxy& sp)
+{
+  double softleft;
+  softleft = sp.GetRange(225); //diagonally left
+  return softleft;
+}
+
+double GetSoftRightLaserData(LaserProxy& sp)
+{
+  double sright;
+  sright = sp.GetRange(135); //diagonally right
+  return sright;
+}
 // Returns distance from destination 
 // pythagorean 
 double GetDistance(double x, double y)
